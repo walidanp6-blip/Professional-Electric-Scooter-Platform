@@ -1,0 +1,9 @@
+{
+  "name": "scootfix-root",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "backend",
+    "packages/*"
+  ]
+}

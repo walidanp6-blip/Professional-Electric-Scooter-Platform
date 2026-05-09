@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: scootfix-postgres
+    environment:
+      POSTGRES_USER: scootfix
+      POSTGRES_PASSWORD: scootfix
+      POSTGRES_DB: scootfix
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - scootfix-network
+
+  # Cache
+  redis:
+    image: redis:7-alpine
+    container_name: scootfix-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - scootfix-network
+
+  # MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: scootfix-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - scootfix-network
+
+  # API
+  api:
+    build:
+      context: ../../backend/api
+      dockerfile: Dockerfile
+    container_name: scootfix-api
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: scootfix
+      DB_PASS: scootfix
+      DB_NAME: scootfix
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-scootfix-secret-key}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - scootfix-network
+
+  # Web Dashboard
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    container_name: scootfix-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - scootfix-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: scootfix-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - api
+      - web
+    networks:
+      - scootfix-network
+
+volumes:
+  postgres_data:
+
+networks:
+  scootfix-network:
+    driver: bridge
